@@ -120,9 +120,9 @@ def prob(params):
 
 if __name__ == '__main__':
     vm_file = 'vm_trace.txt'  # input file
-    res_file = 'g_dist_params.txt'  # output file
+    res_file = 'p_opt.txt'  # output file
 
-    i_ext, gtot, C, gl, Vl, Ve, Vi, te, ti, spike_threshold, dt, n_smooth, n_ival, g_start, he1, he2, hi1, hi2 = get_params()
+    i_ext, gtot, C, gl, Vl, Ve, Vi, te, ti, spike_threshold, dt, n_smooth, n_ival, p_start, he1, he2, hi1, hi2 = get_params()
 
     h = {}
     h_attr = ['lin', 'cross', 'sq', 'rest']
@@ -130,8 +130,8 @@ if __name__ == '__main__':
     hp_attr = ['lin', 'sq']
 
     sf = open(res_file, 'w')         # open file and save result
-    sf.write('#\t\tcurrent ival\t\t\ttemporary average\n')
-    sf.write('# npts    ge\t  gi\t  se\t  si\t  ge\t  gi\t  se\t  si\n\n')
+    sf.write('#\t\tcurrent interval\t\t\ttemporary average\n')
+    sf.write('# success\t  ge\t  gi\t  se\t  si\t  ge\t  gi\t  se\t  si\n\n')
     sf.close()
 
     v_chunks, n_chunks = get_vm_between_spikes(vm_file, dt, spike_threshold)
@@ -152,20 +152,25 @@ if __name__ == '__main__':
         a = -(vm0-Ve)/(vm0-Vi)
         b = -(gl * (vm0-Vl) + C * (vmp-vm0) / dt - i_ext) / (vm0 - Vi)
 
-        print "processing interval", i_chunk + 1
-        bp = minimise(prob, g_start)    # maximise probability
+        print "\nprocessing interval", i_chunk + 1
+        p_opt, success = minimise(prob, p_start)    # maximise probability
 
-        res[i_chunk, 0] = n                 # nb of data points
-        res[i_chunk, 1] = bp[0]             # exc. mean
-        res[i_chunk, 2] = gtot - gl - bp[0]     # inh. mean
-        res[i_chunk, 3:5] = bp[1:3]         # exc. and inh. SDs
+        res[i_chunk, 0] = float(success)               # minimization successful?
+        res[i_chunk, 1] = p_opt[0]              # exc. mean
+        res[i_chunk, 2] = gtot - gl - p_opt[0]  # inh. mean
+        res[i_chunk, 3:5] = p_opt[1:3]          # exc. and inh. SDs
 
-        res[i_chunk, 5:9] = mean(res[:i_chunk + 1, :], 0)[1:5]  # momentary averages
+        where_success = res[:, 0] == 1.0
+        res[i_chunk, 5:9] = mean(res[where_success, 1:5], 0)  # momentary average
+        # TODO: mean only over successful minimizations
 
         sf = open(res_file, 'a')         # open file and save result
         line = '%d\t' % (res[i_chunk, 0])
-        for i in range(1,9):
-            line += '%2.5f\t'%(res[i_chunk, i])
+        for i in range(1, 9):
+            line += '%2.5f\t' % (res[i_chunk, i])
 
         sf.write(line+'\n')
         sf.close()
+
+    # TODO: could also try minimization that respects bounds (all parameters should be greater than 0)
+    # TODO: could try to update p_start

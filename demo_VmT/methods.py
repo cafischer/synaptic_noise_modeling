@@ -1,6 +1,7 @@
 from numpy import *
 from header import *
 from simplex import *
+import scipy.optimize
 
 
 def gauss_fun(x, m, s):
@@ -62,20 +63,27 @@ def get_vm_between_spikes(file_name, dt, vt, t_pre=5, t_post=10, max_chunks=100,
     return vm_chunks, n_chunks
     
 
-def minimise(f, pstart):
+def minimise(fun, p_start, fatol=1e-10, maxfev=700):
     """makes use of a simplex algorithm (cf. 'Numerical Recipes') to find the minimum of the scalar function 'f'
     starting from point 'pstart'"""
-    nf = 0
-    nd = 3                  # nb. of parameters
-    y = zeros(nd+1, float)
-    p = zeros((nd+1, nd), float)
-    p[:] = pstart
 
-    for k in range(1, nd+1):
-        p[k, k-1] += p[k, k-1]/2.
+    # old method:
+    # nf = 0
+    # nd = 3                  # nb. of parameters
+    # y = zeros(nd+1, float)
+    # p = zeros((nd+1, nd), float)
+    # p[:] = pstart
+    #
+    # for k in range(1, nd+1):
+    #     p[k, k-1] += p[k, k-1]/2.
+    #
+    # for k in range(nd + 1):
+    #     y[k] = fun(p[k])
+    #
+    # bp = amoeba(p, y, ftol, fun, nf)
 
-    for k in range(nd + 1):
-        y[k] = f(p[k])
-
-    bp = amoeba(p, y, 1e-10, f, nf)
-    return bp
+    result = scipy.optimize.minimize(fun, p_start, method='Nelder-Mead',
+                                     options={'fatol': fatol, 'maxfev': N_EVAL_MAX})
+    print 'success: ', result.success
+    print 'nfev: ', result.nfev
+    return result.x, result.success
