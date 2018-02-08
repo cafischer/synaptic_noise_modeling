@@ -21,7 +21,8 @@ def smooth_with_gauss(a, s):
     return r
         
 
-def get_vm_between_spikes(file_name, dt, vt, t_pre=5, t_post=10, max_chunks=100, min_chunk_len=1000, max_chunk_len=10000):
+def get_vm_between_spikes(file_name, dt, vt, t_pre=5, t_post=10, max_chunks=100,
+                          min_chunk_len=1000, max_chunk_len=10000):
     """scans the voltage file and stores ISIs in the dictionary 'd'.
     :param t_pre: excluded time preceding spike
     :param t_post: excluded time after spike
@@ -41,7 +42,7 @@ def get_vm_between_spikes(file_name, dt, vt, t_pre=5, t_post=10, max_chunks=100,
     idxs_chunk = {}
     n_chunk = 0
     for spike_i, spike_j in zip(spike_idxs[:len(spike_idxs)], spike_idxs[1:]):
-        if (spike_j - pre_idx) - (spike_i + post_idx) >= min_chunk_len:
+        if min_chunk_len <= (spike_j - pre_idx) - (spike_i + post_idx) <= max_chunk_len:
             vm_chunks['%d' % n_chunk] = vm[spike_i + post_idx:spike_j - pre_idx]
             idxs_chunk['%d' % n_chunk] = (spike_i + post_idx, spike_j - pre_idx)
             n_chunk += 1
