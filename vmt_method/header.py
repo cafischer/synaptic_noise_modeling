@@ -15,13 +15,15 @@ def get_params():
     n_smooth = 3
     n_ival = 100  # nb of intervals analysed
 
-    p_start = [0.03, 0.001, 0.001]
+    p_lower_bounds = [0.0, 0.0, 0.0]
+    p_upper_bounds = [gtot - gl, 0.1, 0.1]
 
     he1 = 1. - dt / te
     he2 = dt / te
     hi1 = 1. - dt / ti
     hi2 = dt / ti
-    return Iext, gtot, C, gl, Vl, Ve, Vi, te, ti, spike_threshold, dt, n_smooth, n_ival, p_start, he1, he2, hi1, hi2
+    return (Iext, gtot, C, gl, Vl, Ve, Vi, te, ti, spike_threshold, dt, n_smooth, n_ival,
+            p_lower_bounds, p_upper_bounds, he1, he2, hi1, hi2)
 
 
 # target values of the file 'vm_trace.txt'

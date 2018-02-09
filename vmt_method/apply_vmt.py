@@ -1,5 +1,6 @@
 from numpy import *
 from pylab import *
+import json
 from methods import *
 from header import get_params
 
@@ -119,10 +120,23 @@ def prob(params):
 
 
 if __name__ == '__main__':
-    vm_file = 'vm_trace.txt'  # input file
+    # vm_file = 'vm_trace.txt'  # input file
+    # res_file = 'p_opt.txt'  # output file
+    vm_file = '../simulate_model/data/model_pas/v.txt'  # input file
     res_file = 'p_opt.txt'  # output file
+    params_file = '../simulate_model/data/model_pas/model_params.json'
 
-    i_ext, gtot, C, gl, Vl, Ve, Vi, te, ti, spike_threshold, dt, n_smooth, n_ival, p_start, he1, he2, hi1, hi2 = get_params()
+    random_generator = create_pseudo_random_number_generator(seed)
+
+    # read params
+    # (i_ext, gtot, C, gl, Vl, Ve, Vi, te, ti, spike_threshold, dt, n_smooth, n_ival, p_lower_bounds, p_upper_bounds,
+    #  he1, he2, hi1, hi2) = get_params()
+    with open(params_file, 'r') as f:
+        params = json.load(f)
+        param_names = ['i_ext', 'gtot', 'C', 'gl', 'Vl', 'Ve', 'Vi', 'te', 'ti', 'spike_threshold', 'dt', 'n_smooth',
+                       'n_ival', 'p_lower_bounds', 'p_upper_bounds', 'he1', 'he2', 'hi1', 'hi2']
+        (i_ext, gtot, C, gl, Vl, Ve, Vi, te, ti, spike_threshold, dt, n_smooth, n_ival, p_lower_bounds, p_upper_bounds,
+         he1, he2, hi1, hi2) = (params[k] for k in param_names)
 
     h = {}
     h_attr = ['lin', 'cross', 'sq', 'rest']
@@ -153,19 +167,19 @@ if __name__ == '__main__':
         b = -(gl * (vm0-Vl) + C * (vmp-vm0) / dt - i_ext) / (vm0 - Vi)
 
         print "\nprocessing interval", i_chunk + 1
-        p_opt, success = minimise(prob, p_start)    # maximise probability
+        p_start = generate_p_start(i_chunk, p_lower_bounds, p_upper_bounds)
+        p_opt, success = minimize(prob, p_start, p_lower_bounds, p_upper_bounds)    # maximize probability
 
-        res[i_chunk, 0] = float(success)               # minimization successful?
+        res[i_chunk, 0] = float(success)        # minimization successful?
         res[i_chunk, 1] = p_opt[0]              # exc. mean
         res[i_chunk, 2] = gtot - gl - p_opt[0]  # inh. mean
         res[i_chunk, 3:5] = p_opt[1:3]          # exc. and inh. SDs
 
         where_success = res[:, 0] == 1.0
-        res[i_chunk, 5:9] = mean(res[where_success, 1:5], 0)  # momentary average
-        # TODO: mean only over successful minimizations
+        res[i_chunk, 5:9] = mean(res[where_success, 1:5], 0)  # momentary average over all successful minimized
 
         sf = open(res_file, 'a')         # open file and save result
-        line = '%d\t' % (res[i_chunk, 0])
+        line = '%d\t\t\t' % (res[i_chunk, 0])
         for i in range(1, 9):
             line += '%2.5f\t' % (res[i_chunk, i])
 
@@ -173,4 +187,5 @@ if __name__ == '__main__':
         sf.close()
 
     # TODO: could also try minimization that respects bounds (all parameters should be greater than 0)
-    # TODO: could try to update p_start
+    # TODO: could try to update p_start, either use previous or sample random
+    # TODO: check equations
