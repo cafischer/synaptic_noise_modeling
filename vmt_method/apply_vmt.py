@@ -14,6 +14,10 @@ def norm(ge, gi, se, si):
     if si == 0:
         si += sys.float_info.epsilon
 
+    he1 = 1. - dt / te
+    he2 = dt / te
+    hi1 = 1. - dt / ti
+    hi2 = dt / ti
     hlin_e = -ge*(he1-1.)*he2*te/(2.*dt*se**2)
     hcross_e = he1*te/(2.*dt*se**2)
     hsq_e = -(1. + he1**2)*te/(4.*dt*se**2)
@@ -77,6 +81,11 @@ def integrated(ge, gi, se, si):
         si += sys.float_info.epsilon
 
     # arrays shifted: h[''][k] refers to g_e^{k+1}
+    he1 = 1. - dt / te
+    he2 = dt / te
+    hi1 = 1. - dt / ti
+    hi2 = dt / ti
+
     h['lin'][1:n-2] = (-ge*(he1-1.)*he2*te/se**2 + a0*(-b0*(1.+hi1**2)+gi*hi2+hi1*(bm+bp-gi*hi2))*ti/si**2)/2./dt
     h['cross'][1:n-2] = (he1*te/se**2+a0*ap*hi1*ti/si**2)/2./dt
     h['sq'][1:n-2] = -((1.+he1**2)*te/se**2 + a0**2*(1.+hi1**2)*ti/si**2)/4./dt
@@ -120,35 +129,34 @@ def prob(params):
 
 
 if __name__ == '__main__':
-    # vm_file = 'vm_trace.txt'  # input file
-    # res_file = 'p_opt.txt'  # output file
-    vm_file = '../simulate_model/data/model_pas/v.txt'  # input file
-    res_file = 'p_opt.txt'  # output file
-    params_file = '../simulate_model/data/model_pas/model_params.json'
+    vm_dir = '../simulate_model/data/model_pas/v.txt'  # input file
+    res_dir = 'p_opt.txt'  # output file
+    params_dir = '../simulate_model/data/model_pas/model_params.json'
+    n_smooth = 3
+    n_ival = 100
 
     random_generator = create_pseudo_random_number_generator(seed)
 
     # read params
-    # (i_ext, gtot, C, gl, Vl, Ve, Vi, te, ti, spike_threshold, dt, n_smooth, n_ival, p_lower_bounds, p_upper_bounds,
-    #  he1, he2, hi1, hi2) = get_params()
-    with open(params_file, 'r') as f:
+    with open(params_dir, 'r') as f:
         params = json.load(f)
-        param_names = ['i_ext', 'gtot', 'C', 'gl', 'Vl', 'Ve', 'Vi', 'te', 'ti', 'spike_threshold', 'dt', 'n_smooth',
-                       'n_ival', 'p_lower_bounds', 'p_upper_bounds', 'he1', 'he2', 'hi1', 'hi2']
-        (i_ext, gtot, C, gl, Vl, Ve, Vi, te, ti, spike_threshold, dt, n_smooth, n_ival, p_lower_bounds, p_upper_bounds,
-         he1, he2, hi1, hi2) = (params[k] for k in param_names)
+        param_names = ['i_ext', 'gtot', 'c_m', 'gl', 'El', 'Ee', 'Ei', 'te', 'ti', 'spike_threshold', 'dt',
+                       'p_lower_bounds', 'p_upper_bounds']
+        (i_ext, gtot, c_m, gl, El, Ee, Ei, te, ti, spike_threshold, dt,
+         p_lower_bounds, p_upper_bounds) = (params[k] for k in param_names)
+
 
     h = {}
     h_attr = ['lin', 'cross', 'sq', 'rest']
     hp = {}
     hp_attr = ['lin', 'sq']
 
-    sf = open(res_file, 'w')         # open file and save result
+    sf = open(res_dir, 'w')         # open file and save result
     sf.write('#\t\tcurrent interval\t\t\ttemporary average\n')
     sf.write('# success\t  ge\t  gi\t  se\t  si\t  ge\t  gi\t  se\t  si\n\n')
     sf.close()
 
-    v_chunks, n_chunks = get_vm_between_spikes(vm_file, dt, spike_threshold)
+    v_chunks, n_chunks = get_vm_between_spikes(vm_dir, dt, spike_threshold)
     res = zeros((n_chunks, 9,), float)
 
     for i_chunk in range(n_chunks):
@@ -163,8 +171,8 @@ if __name__ == '__main__':
         vm0 = vm[:size(vm)-1]
         vmp = vm[1:]
 
-        a = -(vm0-Ve)/(vm0-Vi)
-        b = -(gl * (vm0-Vl) + C * (vmp-vm0) / dt - i_ext) / (vm0 - Vi)
+        a = -(vm0 - Ee) / (vm0 - Ei)
+        b = -(gl * (vm0 - El) + c_m * (vmp - vm0) / dt - i_ext) / (vm0 - Ei)
 
         print "\nprocessing interval", i_chunk + 1
         p_start = generate_p_start(i_chunk, p_lower_bounds, p_upper_bounds)
@@ -178,7 +186,7 @@ if __name__ == '__main__':
         where_success = res[:, 0] == 1.0
         res[i_chunk, 5:9] = mean(res[where_success, 1:5], 0)  # momentary average over all successful minimized
 
-        sf = open(res_file, 'a')         # open file and save result
+        sf = open(res_dir, 'a')         # open file and save result
         line = '%d\t\t\t' % (res[i_chunk, 0])
         for i in range(1, 9):
             line += '%2.5f\t' % (res[i_chunk, i])
