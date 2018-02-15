@@ -129,22 +129,21 @@ def prob(params):
 
 
 if __name__ == '__main__':
-    vm_dir = '../simulate_model/data/model_pas/v.txt'  # input file
+    vm_dir = '../prepare_model/data/model_pas/0.00/v.txt'  # input file
     res_dir = 'p_opt.txt'  # output file
-    params_dir = '../simulate_model/data/model_pas/model_params.json'
+    params_dir = '../prepare_model/data/model_pas/0.00/model_params.json'
     n_smooth = 3
-    n_ival = 100
+    n_ival = 50
 
     random_generator = create_pseudo_random_number_generator(seed)
 
     # read params
     with open(params_dir, 'r') as f:
         params = json.load(f)
-        param_names = ['i_ext', 'gtot', 'c_m', 'gl', 'El', 'Ee', 'Ei', 'te', 'ti', 'spike_threshold', 'dt',
-                       'p_lower_bounds', 'p_upper_bounds']
-        (i_ext, gtot, c_m, gl, El, Ee, Ei, te, ti, spike_threshold, dt,
-         p_lower_bounds, p_upper_bounds) = (params[k] for k in param_names)
-
+        param_names = ['i_ext', 'gtot', 'c_m', 'gl', 'El', 'Ee', 'Ei', 'te', 'ti', 'spike_threshold', 'dt']
+        (i_ext, gtot, c_m, gl, El, Ee, Ei, te, ti, spike_threshold, dt) = (params[k] for k in param_names)
+    p_lower_bounds = [0.0, 0.0, 0.0]
+    p_upper_bounds = [gtot - gl, 0.1, 0.1]
 
     h = {}
     h_attr = ['lin', 'cross', 'sq', 'rest']

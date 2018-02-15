@@ -27,9 +27,14 @@ def fit_gauss_to_hist(v, n_bins):
 if __name__ == '__main__':
     load_mechanism_dir("/home/cf/Phd/programming/projects/cell_fitting/cell_fitting/model/OU_process")
 
-    save_dir = './results/'
-    data_dir = '../simulate_model/data/model_pas/'
-    model_dir = '../simulate_model/models/model_pas.json'
+    save_dir = './results/model_stellate'
+    data_dir = '../prepare_model/data/model_stellate/'
+    model_dir = '/home/cf/Phd/programming/projects/cell_fitting/cell_fitting/results/best_models/5/cell.json'
+    mechanism_dir = '/home/cf/Phd/programming/projects/cell_fitting/cell_fitting/model/channels/vavoulis'
+    # save_dir = './results/model_pas/'
+    # data_dir = '../prepare_model/data/model_pas/'
+    # model_dir = '../prepare_model/models/model_pas.json'
+    # mechanism_dir = None
     i_amp1 = 0.0
     i_amp2 = -0.5
     n_bins = 100
@@ -59,17 +64,6 @@ if __name__ == '__main__':
     # fit gaussian to histogram
     (mu1, sig1), bin_midpoints1, norm_fac1 = fit_gauss_to_hist(v1, n_bins)
     (mu2, sig2), bin_midpoints2, norm_fac2 = fit_gauss_to_hist(v2, n_bins)
-
-    pl.figure()
-    pl.hist(v1, bins=n_bins, weights=np.ones(len(v1)) / norm_fac1, color='b', alpha=0.5, label='$i_{inj}$=%.2f' % i_amp1)
-    pl.hist(v2, bins=n_bins, weights=np.ones(len(v2)) / norm_fac2, color='r', alpha=0.5, label='$i_{inj}$=%.2f' % i_amp2)
-    pl.plot(bin_midpoints1, gauss(bin_midpoints1, mu1, sig1), 'b')
-    pl.plot(bin_midpoints2, gauss(bin_midpoints2, mu2, sig2), 'r')
-    pl.xlabel('Membrane potential (mV)', fontsize=16)
-    pl.ylabel('Count', fontsize=16)
-    pl.legend()
-    #pl.show()
-
     print mu1, sig1
     print mu2, sig2
 
@@ -90,8 +84,8 @@ if __name__ == '__main__':
              / (tau_i * ((Ee - mu1) * (Ei - mu2) + (Ee - mu2) * (Ei - mu1)) * (Ei - Ee) * (mu1 - mu2)**2))
     # ge0 = max(0, ge0)
     # gi0 = max(0, gi0)
-    var_e = max(0, var_e)
-    var_i = max(0, var_i)
+    # var_e = max(0, var_e)
+    # var_i = max(0, var_i)
     std_e = np.sqrt(var_e)
     std_i = np.sqrt(var_i)
     print 'ge0: %.5f' % ge0 + ' uS'
@@ -104,20 +98,54 @@ if __name__ == '__main__':
         simulation_params = json.load(f)
     simulation_params['i_inj'] = np.ones(to_idx(tstop, dt)+1) * i_amp1
     with open(os.path.join(data_dir, '%.2f' % i_amp1, 'noise_params.json'), 'r') as f:
-        noise_params = json.load(f)
+        noise_params_true = json.load(f)
+    seed = np.loadtxt(os.path.join(save_dir, 'seed.txt'))[0]
 
-    noise_params['g_e0'] = ge0
-    noise_params['g_i0'] = gi0
-    noise_params['std_e'] = std_e
-    noise_params['std_i'] = std_i
+    noise_params = {'g_e0': ge0, 'g_i0': gi0, 'std_e': std_e, 'std_i': std_i,
+                    'tau_e': noise_params_true['tau_e'], 'tau_i': noise_params_true['tau_i'],
+                    'E_e': noise_params_true['E_e'], 'E_i': noise_params_true['E_i']}
 
-    cell = Cell.from_modeldir(model_dir)
+    cell = Cell.from_modeldir(model_dir, mechanism_dir)
     ou_process = ou_noise_input(cell, **noise_params)
+    ou_process.new_seed(seed)
     v_new, t_new, _ = iclamp_handling_onset(cell, **simulation_params)
+    v1 = np.loadtxt(os.path.join(data_dir, '%.2f' % i_amp1, 'v.txt'))
+    v2 = np.loadtxt(os.path.join(data_dir, '%.2f' % i_amp1, 'v.txt'))
+
+    save_dir = os.path.join(save_dir)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
     pl.figure()
-    pl.plot(t, v1, 'k')
-    pl.plot(t_new, v_new, 'r')
-    pl.xlabel('Time(ms)')
+    pl.hist(v1, bins=n_bins, weights=np.ones(len(v1)) / norm_fac1, color='0.2', alpha=0.5, label='$i_{inj}$=%.2f' % i_amp1)
+    pl.hist(v2, bins=n_bins, weights=np.ones(len(v2)) / norm_fac2, color='0.8', alpha=0.5, label='$i_{inj}$=%.2f' % i_amp2)
+    pl.plot(bin_midpoints1, gauss(bin_midpoints1, mu1, sig1), 'k')
+    pl.plot(bin_midpoints2, gauss(bin_midpoints2, mu2, sig2), 'k')
+    pl.xlabel('Membrane potential (mV)')
+    pl.ylabel('Fraction')
+    pl.legend()
+    pl.tight_layout()
+    pl.savefig(os.path.join(save_dir, 'fit_gauss_to_v.png'))
+
+    pl.figure()
+    pl.plot(t, v1, '0.3', label='True')
+    pl.plot(t_new, v_new, '0.7', label='Fit')
+    pl.xlabel('Time (ms)')
     pl.ylabel('Membrane Potential (mV)')
+    pl.xlim(0, 1000)
+    pl.legend()
+    pl.tight_layout()
+    pl.savefig(os.path.join(save_dir, 'v_fitted.png'))
+
+    pl.figure()
+    width = 0.2
+    pl.bar(np.array([0, 1, 2, 3]) - width / 2.,
+           [noise_params_true['g_e0'], noise_params_true['g_i0'], noise_params_true['std_e'],
+            noise_params_true['std_i']], width=width, color='0.3', label='True')
+    pl.bar(np.array([0, 1, 2, 3]) + width / 2., [ge0, gi0, std_e, std_i], width=width, color='0.7', label='Fit')
+    pl.xticks([0, 1, 2, 3], ['$g_e^0$', '$g_i^0$', '$\sigma_e$', '$\sigma_i$'])
+    pl.ylabel('Conductance (uS)')
+    pl.legend()
+    pl.tight_layout()
+    pl.savefig(os.path.join(save_dir, 'parameters_fitted.png'))
     pl.show()
