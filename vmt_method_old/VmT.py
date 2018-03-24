@@ -174,7 +174,7 @@ for iInt in range(n_ival):
     sf = open(resfile, 'a')         # open file and save result
     line = '%d\t' % (res[iInt, 0])
     for i in range(1, 9):
-        line += '%2.5f\t'%(res[iInt,i])
+        line += '%2.5f\t' % (res[iInt, i])
             
     sf.write(line+'\n')
     sf.close()
@@ -187,7 +187,7 @@ with open(os.path.join(data_dir, '%.2f' % i_amp, 'simulation_params.json'), 'r')
 simulation_params['i_inj'] = np.ones(to_idx(simulation_params['tstop'], simulation_params['dt'])+1) * i_amp
 with open(os.path.join(data_dir, '%.2f' % i_amp, 'noise_params.json'), 'r') as f:
     noise_params_true = json.load(f)
-seed = np.loadtxt(os.path.join(save_dir, 'seed.txt'))[0]
+seed = float(np.loadtxt(os.path.join(data_dir, '%.2f' % i_amp, 'seed.txt')))
 
 noise_params = {'g_e0': ge0, 'g_i0': gi0, 'std_e': std_e, 'std_i': std_i,
                 'tau_e': noise_params_true['tau_e'], 'tau_i': noise_params_true['tau_i'],
@@ -213,10 +213,18 @@ pl.savefig(os.path.join(save_dir, 'v_fitted.png'))
 
 pl.figure()
 width = 0.2
-pl.bar(np.array([0, 1, 2, 3]) - width / 2.,
-       [noise_params_true['g_e0'], noise_params_true['g_i0'], noise_params_true['std_e'],
-        noise_params_true['std_i']], width=width, color='0.3', label='True')
-pl.bar(np.array([0, 1, 2, 3]) + width / 2., [ge0, gi0, std_e, std_i], width=width, color='0.7', label='Fit')
+true_params = np.array([noise_params_true['g_e0'], noise_params_true['g_i0'], noise_params_true['std_e'],
+        noise_params_true['std_i']])
+estimated_params = np.array([ge0, gi0, std_e, std_i])
+error_percent = (estimated_params-true_params) / true_params * 100
+pl.bar(np.array([0, 1, 2, 3]) - width / 2., true_params, width=width, color='0.3', label='True')
+pl.bar(np.array([0, 1, 2, 3]) + width / 2., estimated_params, width=width, color='0.7', label='Fit')
+for i, e in enumerate(error_percent):
+    min_val = min(estimated_params[i], true_params[i])
+    max_val = max(estimated_params[i], true_params[i])
+    pl.annotate('', xy=(i+width/2., min_val), xytext=(i+width/2., max_val), arrowprops=dict(arrowstyle='<->'))
+    pl.annotate('%.2f %%' % e, xy=(i+width*7./10., min_val), xytext=(i+width*7./10., max_val - (max_val-min_val)/2.),
+                va='center', ha='left')
 pl.xticks([0, 1, 2, 3], ['$g_e^0$', '$g_i^0$', '$\sigma_e$', '$\sigma_i$'])
 pl.ylabel('Conductance (uS)')
 pl.legend()

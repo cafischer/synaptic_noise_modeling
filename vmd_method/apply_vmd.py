@@ -15,13 +15,14 @@ def gauss(x, mu, sig):
     return np.exp(-(x-mu)**2 / (2*sig**2))
 
 
-def fit_gauss_to_hist(v, n_bins):
-    hist, bins = np.histogram(v, bins=n_bins)
+def fit_gauss_to_hist(v, dv_bin):
+    bins = np.arange(np.min(v), np.max(v), dv_bin)
+    hist, bins = np.histogram(v, bins)
     norm_fac = np.max(hist)
     hist = hist / norm_fac
     bin_midpoints = np.array([(e_s + e_e) / 2 for (e_s, e_e) in zip(bins[:-1], bins[1:])])
     p_opt, _ = curve_fit(gauss, bin_midpoints, hist, p0=[np.mean(v), np.std(v)])
-    return p_opt, bin_midpoints, norm_fac
+    return p_opt, bin_midpoints, norm_fac, bins
 
 
 if __name__ == '__main__':
@@ -37,7 +38,7 @@ if __name__ == '__main__':
     # mechanism_dir = None
     i_amp1 = 0.0
     i_amp2 = -0.5
-    n_bins = 100
+    dv_bin = 0.2
     params_dir = os.path.join(data_dir, '%.2f' % i_amp1, 'model_params.json')
 
     # params remove APs
@@ -58,12 +59,12 @@ if __name__ == '__main__':
     t = np.arange(0, tstop+dt, dt)
 
     # remove APs
-    v1 = remove_APs(v1, t, AP_threshold, t_before, t_after)
-    v2 = remove_APs(v2, t, AP_threshold, t_before, t_after)
+    v1_noAP = remove_APs(v1, t, AP_threshold, t_before, t_after)
+    v2_noAP = remove_APs(v2, t, AP_threshold, t_before, t_after)
 
     # fit gaussian to histogram
-    (mu1, sig1), bin_midpoints1, norm_fac1 = fit_gauss_to_hist(v1, n_bins)
-    (mu2, sig2), bin_midpoints2, norm_fac2 = fit_gauss_to_hist(v2, n_bins)
+    (mu1, sig1), bin_midpoints1, norm_fac1, bins1 = fit_gauss_to_hist(v1_noAP, dv_bin)
+    (mu2, sig2), bin_midpoints2, norm_fac2, bins2 = fit_gauss_to_hist(v2_noAP, dv_bin)
     print mu1, sig1
     print mu2, sig2
 
@@ -99,7 +100,7 @@ if __name__ == '__main__':
     simulation_params['i_inj'] = np.ones(to_idx(tstop, dt)+1) * i_amp1
     with open(os.path.join(data_dir, '%.2f' % i_amp1, 'noise_params.json'), 'r') as f:
         noise_params_true = json.load(f)
-    seed = np.loadtxt(os.path.join(save_dir, 'seed.txt'))[0]
+    seed = float(np.loadtxt(os.path.join(data_dir, '%.2f' % i_amp1, 'seed.txt')))
 
     noise_params = {'g_e0': ge0, 'g_i0': gi0, 'std_e': std_e, 'std_i': std_i,
                     'tau_e': noise_params_true['tau_e'], 'tau_i': noise_params_true['tau_i'],
@@ -109,16 +110,14 @@ if __name__ == '__main__':
     ou_process = ou_noise_input(cell, **noise_params)
     ou_process.new_seed(seed)
     v_new, t_new, _ = iclamp_handling_onset(cell, **simulation_params)
-    v1 = np.loadtxt(os.path.join(data_dir, '%.2f' % i_amp1, 'v.txt'))
-    v2 = np.loadtxt(os.path.join(data_dir, '%.2f' % i_amp1, 'v.txt'))
 
     save_dir = os.path.join(save_dir)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
     pl.figure()
-    pl.hist(v1, bins=n_bins, weights=np.ones(len(v1)) / norm_fac1, color='0.2', alpha=0.5, label='$i_{inj}$=%.2f' % i_amp1)
-    pl.hist(v2, bins=n_bins, weights=np.ones(len(v2)) / norm_fac2, color='0.8', alpha=0.5, label='$i_{inj}$=%.2f' % i_amp2)
+    pl.hist(v1_noAP, bins1, weights=np.ones(len(v1)) / norm_fac1, color='0.2', alpha=0.5, label='$i_{inj}$=%.2f' % i_amp1)
+    pl.hist(v2_noAP, bins2, weights=np.ones(len(v2)) / norm_fac2, color='0.8', alpha=0.5, label='$i_{inj}$=%.2f' % i_amp2)
     pl.plot(bin_midpoints1, gauss(bin_midpoints1, mu1, sig1), 'k')
     pl.plot(bin_midpoints2, gauss(bin_midpoints2, mu2, sig2), 'k')
     pl.xlabel('Membrane potential (mV)')
