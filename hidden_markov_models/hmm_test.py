@@ -31,7 +31,6 @@ Y_true, hidden_states_true = model.sample(ns)
 # pl.plot(hidden_states_true, 'g')
 
 
-
 model = hmm.GaussianHMM(n_components=2, n_iter=200, covariance_type="diag", algorithm='viterbi')
 #model = hmm.MultinomialHMM(n_components=2, n_iter=200, algorithm='viterbi')
 

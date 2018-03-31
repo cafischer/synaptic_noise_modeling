@@ -7,13 +7,14 @@ import sys
 
 
 # create data set
+np.random.seed(1)
 time = np.arange(0, 100, 0.1)
 
 # parameters (theta)
-trans_mat = np.array([[0.85, 0.15], [0.15, 0.85]])  # of hidden states
-start_prob = np.array([[0.0], [1.0]])  # of hidden states
-means = np.array([[0.0], [3.0]])  # of emission probability
-covars = np.array([[0.1], [1.0]])  # of emission probability
+trans_mat = np.array([[0.95, 0.15], [0.15, 0.85]])  # of hidden states
+start_prob = np.array([0.0, 1.0])  # of hidden states
+means = np.array([0.0, 3.0])  # of emission probability
+covars = np.array([[0.01, 0.0], [0.0, 1.0]])  # of emission probability
 
 # hidden states (Z)
 Z = np.zeros(len(time)) 
@@ -26,21 +27,19 @@ for i, ts in enumerate(time[1:], 1):
 
 # observed data (X)
 X = np.zeros(len(time)) 
-X[Z==0] = covars[0] * np.random.randn(sum(Z==0)) + means[0]
-X[Z==1] = covars[1] * np.random.randn(sum(Z==1)) + means[1]
+X[Z == 0] = covars[0, 0] * np.random.randn(sum(Z == 0)) + means[0]
+X[Z == 1] = covars[1, 1] * np.random.randn(sum(Z == 1)) + means[1]
 
-# plot
-plt.figure()
-plt.plot(time, X, 'k', label='X')
-plt.plot(time, Z, 'b', label='Z')
-plt.ylabel('Calcium signal')
-plt.xlabel('Time')
-plt.legend()
-plt.show()
-
+# # plot
+# plt.figure()
+# plt.plot(time, X, 'k', label='X')
+# plt.plot(time, Z, 'b', label='Z')
+# plt.ylabel('Calcium signal')
+# plt.xlabel('Time')
+# plt.legend()
+# plt.show()
 
 # In[3]:
-
 
 def init_start_prob(n_states):
     """Column vector with entries in [0, 1] that must sum to 1."""
@@ -128,7 +127,9 @@ def forward_backward_algorithm_scaled(X, start_prob_est, trans_mat_est, means_es
         
     for n in range(n_timesteps-2, -1, -1):
         for k in range(n_states):
-            beta_tmp[n, k] = np.sum([beta_head[n+1, j] * norm.pdf(X[n+1], means_est[j], np.sqrt(covars_est[j][j])) * trans_mat_est[k, j]
+            beta_tmp[n, k] = np.sum([beta_head[n+1, j]
+                                     * norm.pdf(X[n+1], means_est[j], np.sqrt(covars_est[j][j]))
+                                     * trans_mat_est[k, j]
                                  for j in range(n_states)])
         beta_head[n, :] = beta_tmp[n, :] / cs[n+1]
     return alpha_head, beta_head, cs
@@ -147,11 +148,11 @@ def do_expectation(X, alpha, beta, n_timesteps, n_states):
             for j in range(n_states):
                 xi[n, k, j] = (alpha[n, k] * norm.pdf(X[n+1], means_est[j], np.sqrt(covars_est[j][j]))
                                * trans_mat_est[k, j] * beta[n+1, j]) / p_x
-    return gamma, xi, p_x
+    return gamma, xi, np.log(p_x)
 
 
 def do_expectation_scaled(X, alpha_head, beta_head, cs, n_timesteps, n_states):
-    p_x = max(np.product(cs), sys.float_info.epsilon)  # p_x should not be 0
+    log_p_x = np.sum(np.log(cs))
     gamma = np.zeros((n_timesteps, n_states))
     xi = np.zeros((n_timesteps-1, n_states, n_states))
     
@@ -161,9 +162,9 @@ def do_expectation_scaled(X, alpha_head, beta_head, cs, n_timesteps, n_states):
     for n in range(n_timesteps-1):
         for k in range(n_states):
             for j in range(n_states):
-                xi[n, k, j] = cs[n+1] * (alpha_head[n, k] * norm.pdf(X[n+1], means_est[j], np.sqrt(covars_est[j][j]))
-                                         * trans_mat_est[k, j] * beta_head[n+1, j]) / p_x
-    return gamma, xi, p_x
+                xi[n, k, j] = 1./cs[n+1] * (alpha_head[n, k] * norm.pdf(X[n+1], means_est[j], np.sqrt(covars_est[j][j]))
+                                         * trans_mat_est[k, j] * beta_head[n+1, j])
+    return gamma, xi, log_p_x
 
 
 def do_maximization(gamma, xi, n_timesteps, n_states):
@@ -193,9 +194,9 @@ def do_maximization(gamma, xi, n_timesteps, n_states):
 # In[13]:
 
 # EM algorithm
-max_iter = 100
+max_iter = 200  # TODO: 200
 convergence = False
-p_x_old = 2
+p_x_log_old = np.inf
 tol = 1e-8
 scaled = True
 
@@ -219,37 +220,38 @@ for iter in range(max_iter):
     if scaled:
         alpha_head, beta_head, cs = forward_backward_algorithm_scaled(X, start_prob_est, trans_mat_est, means_est,
                                                                       covars_est, n_timesteps, n_states)
-        gamma, xi, p_x = do_expectation_scaled(X, alpha_head, beta_head, cs, n_timesteps, n_states)
+        gamma, xi, log_p_x = do_expectation_scaled(X, alpha_head, beta_head, cs, n_timesteps, n_states)
     else:
         alpha, beta = forward_backward_algorithm(X, start_prob_est, trans_mat_est, means_est,
                                                  covars_est, n_timesteps, n_states)
-        gamma, xi, p_x = do_expectation(X, alpha, beta, n_timesteps, n_states)
+        gamma, xi, log_p_x = do_expectation(X, alpha, beta, n_timesteps, n_states)
 
     # M-step
     start_prob_est, trans_mat_est, means_est, covars_est = do_maximization(gamma, xi, n_timesteps, n_states)
         
     print()
-    print('start_prob_est: ', start_prob_est)   
+    print('start_prob_est: ', start_prob_est)
     print('trans_mat_est: ', trans_mat_est)  
     print('means_est: ', means_est)  
     print('covars_est', covars_est)
 
-    # check convergence TODO
-    # if np.abs(p_x - p_x_old) <= tol:
-    #     convergence = True
-    #     break
-    # p_x_old = p_x
+    # check convergence
+    print 'log(p(x)): ', log_p_x
+    if np.abs(log_p_x - p_x_log_old) <= tol:
+        convergence = True
+        break
+    p_x_log_old = log_p_x
      
-print('Results: ')
-print()
-print('convergence: ', convergence)
-print('n_iter: ', iter)
-print('start_prob_est: ', start_prob_est)   
-print('trans_mat_est: ', trans_mat_est)  
-print('means_est: ', means_est)  
-print('covars_est', covars_est)
-print()
-print('start_prob_true: ', start_prob)   
-print('trans_mat_true: ', trans_mat)  
-print('means_true: ', means)  
-print('covars_true', covars)
+print
+print 'converged: ', convergence
+print 'iterations: ', iter
+print 'startprob: ', ['%.3f' % s for s in start_prob_est]
+print 'transmat: ', [['%.3f' % t for t in t_row] for t_row in trans_mat_est]
+print 'means: ', ['%.3f' % m for m in means_est]
+print 'covars: ', ['%.3f' % c for c in np.diag(covars_est)]
+print
+print 'true: '
+print 'startprob: ', ['%.3f' % s for s in start_prob]
+print 'transmat: ', [['%.3f' % t for t in t_row] for t_row in trans_mat]
+print 'means: ', ['%.3f' % m for m in means]
+print 'covars: ', ['%.3f' % c for c in np.diag(covars)]
