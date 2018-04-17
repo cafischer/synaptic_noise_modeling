@@ -61,16 +61,14 @@ class Synapse:
 
 class HMMModel:
 
-    #     self.C = np.array([  # Linear factor to get from z_n to x_n
-    #         [1],
-    #         [0],
-    #         [0]
-    #     ])
-
     def __init__(self, cell, exc_synapse, inh_synapse):
         self.cell = cell
         self.exc_synapse = exc_synapse
         self.inh_synapse = inh_synapse
+
+        self.C = np.array([  # Linear factor to get from z_n to x_n
+            [1, 0, 0]
+        ])
 
     def get_trans(self, V_old, g_e_old, g_i_old, p_gates_old, i_inj, dt):
         g_max_times_gates = np.zeros(len(self.cell.ionchannels))
@@ -86,9 +84,11 @@ class HMMModel:
             eps[i] = ionchannel.ep
 
         i_inj *= 1e-6  # (mA)
+        g_e_old_ = copy.copy(g_e_old) * self.cell.cell_area
+        g_i_old_ = copy.copy(g_i_old) * self.cell.cell_area
 
         trans_mat = np.array([
-            [1 - dt * (np.sum(g_max_times_gates) + g_e_old + g_i_old) / self.cell.cm,
+            [1 - dt * (np.sum(g_max_times_gates) + g_e_old_ + g_i_old_) / self.cell.cm,
              dt * self.exc_synapse.ep, dt * self.inh_synapse.ep],
             [0, 1 - dt / self.exc_synapse.tau, 0],
             [0, 0, 1 - dt / self.inh_synapse.tau]

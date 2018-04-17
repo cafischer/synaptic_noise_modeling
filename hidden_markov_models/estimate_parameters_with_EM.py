@@ -175,7 +175,7 @@ def do_expectation_maximization(X, n_states, max_iter=200, tol=1e-8, printing=Fa
         print('covars: ', ['%.3f' % c for c in np.diag(covars_est)])
         print()
 
-    for iter in range(max_iter):
+    for iteration in range(max_iter):
         # E-step
         alpha_head, beta_head, cs = forward_backward_algorithm_scaled(X, start_prob_est, trans_mat_est, means_est,
                                                                       covars_est, n_timesteps, n_states)
@@ -186,7 +186,7 @@ def do_expectation_maximization(X, n_states, max_iter=200, tol=1e-8, printing=Fa
         start_prob_est, trans_mat_est, means_est, covars_est = do_maximization(gamma, xi, n_timesteps, n_states)
 
         if printing:
-            print('Estimated parameters iteration %i: ' % iter)
+            print('Estimated parameters iteration %i: ' % iteration)
             print('startprob: ', ['%.3f' % s for s in start_prob_est])
             print('transmat: ', [['%.3f' % t for t in t_row] for t_row in trans_mat_est])
             print('means: ', ['%.3f' % m for m in means_est])
@@ -203,7 +203,7 @@ def do_expectation_maximization(X, n_states, max_iter=200, tol=1e-8, printing=Fa
     if printing:
         print()
         print('converged: ', convergence)
-        print('# iterations: ', iter)
+        print('# iterations: ', iteration)
         print()
         print('Estimated parameters: ')
         print('startprob: ', ['%.3f' % s for s in start_prob_est])
